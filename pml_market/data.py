@@ -39,6 +39,37 @@ CLOB_API = "https://clob.polymarket.com"
 # Trajectory -> (dx, v, y) adapter
 # ---------------------------------------------------------------------------
 
+def truncate_trajectory(trajectory: Dict[str, Any],
+                        lookback: int) -> Dict[str, Any]:
+    """Return a copy of *trajectory* keeping only the last *lookback* buckets.
+
+    Markets are often open for months; the price action relevant to resolution
+    is concentrated near the end.  Slicing the last *lookback* buckets gives a
+    horizon of min(T, lookback) steps ending at the resolution bucket.
+
+    Parameters
+    ----------
+    trajectory : dict produced by build_trajectory / fetch_market_history.
+    lookback   : number of buckets to keep (counting back from resolution).
+                 If lookback >= T the trajectory is returned unchanged.
+    """
+    prices  = list(trajectory["prices"])   # length T+1
+    volumes = list(trajectory["volumes"])  # length T
+    times   = list(trajectory["times"])    # length T+1
+    T = len(volumes)
+    if lookback >= T:
+        return trajectory
+    prices  = prices[-(lookback + 1):]
+    volumes = volumes[-lookback:]
+    times   = times[-(lookback + 1):]
+    return {
+        **trajectory,
+        "prices":  prices,
+        "volumes": volumes,
+        "times":   times,
+        "horizon": lookback,
+    }
+
 def _logit(p, eps: float = 1e-6) -> float:
     p = float(p)
     p = min(max(p, eps), 1.0 - eps)
