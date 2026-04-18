@@ -351,3 +351,35 @@ def log_prior_unconstrained(z) -> Any:
     )
 
     return lp + log_jac
+
+
+# ---------------------------------------------------------------------------
+# OOP wrapper
+# ---------------------------------------------------------------------------
+
+from .core import Prior  # noqa: E402  (placed after free functions to avoid cycles)
+
+
+class LatentTypePrior(Prior):
+    """Prior + bijector for the K=3 Gaussian latent-type model.
+
+    Thin wrapper exposing the module-level functions through the `Prior`
+    interface so the inference layer can be swapped onto a different prior
+    by subclassing `Prior`.
+    """
+
+    UNCONSTRAINED_DIM = UNCONSTRAINED_DIM
+
+    def sample(self, rng: np.random.Generator, n: int = 1) -> Dict[str, np.ndarray]:
+        if n == 1:
+            return sample_prior(rng)
+        return sample_prior_batched(rng, n)
+
+    def transform(self, z):
+        return transform(z)
+
+    def to_unconstrained(self, theta):
+        return to_unconstrained(theta)
+
+    def log_prior_unconstrained(self, z):
+        return log_prior_unconstrained(z)

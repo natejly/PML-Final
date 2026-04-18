@@ -108,6 +108,47 @@ def trajectory_to_arrays(trajectory: Dict[str, Any]
     return dx, v, 1
 
 
+def trajectory_to_arrays_raw(trajectory: Dict[str, Any]
+                             ) -> Tuple[np.ndarray, np.ndarray, int]:
+    """Like :func:`trajectory_to_arrays` but un-does the winner alignment.
+
+    The trajectories produced by ``build_trajectory`` always store the
+    *winner-aligned* probability sequence (``prices = P(winner)``).  For the
+    asymmetric / empirical-Bayes volume prior we need a sequence whose label
+    convention is fixed in absolute terms (Yes vs No) rather than relative
+    to the eventual winner, so that the prior's per-Y means line up with
+    inference time.
+
+    Returns
+    -------
+    dx : (T,) array of log-odds increments of P(Yes).
+    v  : (T,) volume array (unchanged by alignment).
+    y  : 1 if the market resolved Yes, 0 if it resolved No.
+    """
+    wl = trajectory.get("winner_label")
+    if wl not in ("Yes", "No"):
+        raise ValueError(
+            f"trajectory_to_arrays_raw needs winner_label in {{'Yes','No'}}, "
+            f"got {wl!r}"
+        )
+    y_raw = 1 if wl == "Yes" else 0
+    prices = list(trajectory["prices"])           # P(winner), length T+1
+    volumes = list(trajectory["volumes"])
+    if len(prices) != len(volumes) + 1:
+        raise ValueError(
+            f"trajectory has prices length {len(prices)} but volumes length "
+            f"{len(volumes)}; expected len(prices) = len(volumes) + 1"
+        )
+    if y_raw == 1:
+        p_yes = prices                            # already P(Yes)
+    else:
+        p_yes = [1.0 - p for p in prices]         # flip to get P(Yes)
+    logits = np.array([_logit(p) for p in p_yes])
+    dx = np.diff(logits)
+    v = np.asarray(volumes, dtype=np.float64)
+    return dx, v, y_raw
+
+
 # ---------------------------------------------------------------------------
 # Stdlib HTTP helpers (mirrors of the notebook)
 # ---------------------------------------------------------------------------

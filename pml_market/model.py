@@ -288,3 +288,28 @@ def stack_thetas(theta_list):
 def index_theta(theta, idx):
     """Extract a single theta dict at batch index `idx`."""
     return {name: np.asarray(theta[name])[idx] for name in PARAM_NAMES}
+
+
+# ---------------------------------------------------------------------------
+# OOP wrapper
+# ---------------------------------------------------------------------------
+
+from .core import Model  # noqa: E402  (placed after free functions to avoid cycles)
+
+
+class GaussianLatentTypeModel(Model):
+    """K=3 Gaussian latent-type model from Example 3.1 of the paper.
+
+    Three trader types (informed, noise, manipulator) with volume-gated
+    softmax mixture weights.  Methods are thin wrappers over the
+    module-level kernels above so that the inference layer can swap in
+    alternative likelihoods by subclassing `Model`.
+    """
+
+    PARAM_NAMES = PARAM_NAMES
+
+    def mixture_logpdf(self, dx, v, y, theta):
+        return mixture_logpdf(dx, v, y, theta)
+
+    def loglik(self, dx, v, y, theta):
+        return loglik(dx, v, y, theta)

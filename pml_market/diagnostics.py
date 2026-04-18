@@ -16,7 +16,10 @@ from typing import Dict, Any, Optional
 import numpy as np
 import torch
 
-from . import model, priors, synthetic
+from . import synthetic
+from .core import Model, Prior
+from .model import GaussianLatentTypeModel, PARAM_NAMES as _DEFAULT_PARAM_NAMES
+from .priors import LatentTypePrior
 
 
 # ---------------------------------------------------------------------------
@@ -82,9 +85,11 @@ def effective_informativeness(v: np.ndarray, theta: Dict[str, np.ndarray]
 # KL projection gap (Def. 4.1) via Monte Carlo + Adam
 # ---------------------------------------------------------------------------
 
-def _theta_dict_to_torch(theta: Dict[str, np.ndarray]) -> Dict[str, torch.Tensor]:
+def _theta_dict_to_torch(theta: Dict[str, np.ndarray],
+                         param_names=_DEFAULT_PARAM_NAMES,
+                         ) -> Dict[str, torch.Tensor]:
     return {k: torch.as_tensor(np.asarray(theta[k]), dtype=torch.float64)
-            for k in model.PARAM_NAMES}
+            for k in param_names}
 
 
 def kl_projection_gap(
@@ -95,6 +100,8 @@ def kl_projection_gap(
     n_samples: int = 256,
     learning_rate: float = 0.05,
     seed: Optional[int] = None,
+    model: Optional[Model] = None,
+    prior: Optional[Prior] = None,
 ) -> Dict[str, Any]:
     """Estimate delta_T(y_star, theta_star) = inf_theta (1/T) D_KL(P_{y*,theta*} || P_{1-y*,theta}).
 
@@ -102,6 +109,11 @@ def kl_projection_gap(
     Delta x ~ P_{y*,theta*} and pushing theta around by Adam in the
     unconstrained space.
     """
+    if model is None:
+        model = GaussianLatentTypeModel()
+    if prior is None:
+        prior = LatentTypePrior()
+
     if seed is not None:
         torch.manual_seed(seed)
         rng = np.random.default_rng(seed)
@@ -119,20 +131,20 @@ def kl_projection_gap(
     v_t = torch.as_tensor(v, dtype=torch.float64)
 
     # log p_{y*, theta*}(dx) needed for the KL definition; constant in theta.
-    theta_star_t = _theta_dict_to_torch(theta_star)
+    theta_star_t = _theta_dict_to_torch(theta_star, model.PARAM_NAMES)
     log_p_star = torch.stack([
         model.mixture_logpdf(dx_t[s], v_t, y_star, theta_star_t)
         for s in range(n_samples)
     ], dim=0)  # (S, T)
 
     # Optimise theta in unconstrained space.
-    z = torch.zeros(priors.UNCONSTRAINED_DIM, dtype=torch.float64, requires_grad=True)
+    z = torch.zeros(prior.UNCONSTRAINED_DIM, dtype=torch.float64, requires_grad=True)
     opt = torch.optim.Adam([z], lr=learning_rate)
 
     trace = np.empty(n_iter)
     for step in range(n_iter):
         opt.zero_grad()
-        theta_alt, _ = priors.transform(z)
+        theta_alt, _ = prior.transform(z)
         log_p_alt = torch.stack([
             model.mixture_logpdf(dx_t[s], v_t, y_alt, theta_alt)
             for s in range(n_samples)
@@ -147,7 +159,7 @@ def kl_projection_gap(
 
     delta_T = float(trace[-50:].mean())
     with torch.no_grad():
-        theta_proj_t, _ = priors.transform(z)
+        theta_proj_t, _ = prior.transform(z)
         theta_proj = {k: v_.detach().cpu().numpy() for k, v_ in theta_proj_t.items()}
 
     return {
@@ -202,11 +214,19 @@ def gaussian_lipschitz_constant(R: float, sigma_min: float = 0.1) -> float:
 
 def online_posterior(dx: np.ndarray, v: np.ndarray, pi0: float = 0.5,
                      n_particles: int = 1000, mcmc_steps: int = 5,
-                     seed: Optional[int] = None) -> Dict[str, Any]:
-    """Run SMC under both outcomes with `record_pi_t=True` and return the
-    online posterior trace pi_t along with the final summary."""
-    from .smc import bayes_factor_smc
-    return bayes_factor_smc(
-        dx, v, pi0=pi0, n_particles=n_particles, mcmc_steps=mcmc_steps,
-        seed=seed, record_pi_t=True,
-    )
+                     seed: Optional[int] = None,
+                     model: Optional[Model] = None,
+                     prior: Optional[Prior] = None) -> Dict[str, Any]:
+    """Run SMC under both outcomes with ``record_pi_t=True`` and return the
+    online posterior trace pi_t along with the final summary.
+
+    Defaults to the Gaussian latent-type model + matching prior; pass
+    alternative `Model` / `Prior` instances to swap them in.
+    """
+    from .smc import SMCInference
+    if model is None:
+        model = GaussianLatentTypeModel()
+    if prior is None:
+        prior = LatentTypePrior()
+    smc = SMCInference(n_particles=n_particles, mcmc_steps=mcmc_steps)
+    return smc.run(dx, v, model, prior, pi0=pi0, seed=seed, record_pi_t=True)
