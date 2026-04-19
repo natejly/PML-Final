@@ -172,10 +172,7 @@ def noise_logpdf(dx, v, sigma2):
 def manipulator_logpdf(dx, v, y, mu3, tau3, sigma3, nu):
     """Type 3 (manipulator): location-scale Student-t.
 
-    Mean = -mu3*(2y-1)*sigmoid(steep*(v - tau3)). The paper specifies a hard
-    indicator 1{v>tau3}; we use a steep sigmoid so gradients through tau3 are
-    well-defined for VI. With steep=20 and typical volume scales O(1) this is
-    indistinguishable from the indicator outside a narrow boundary.
+    Mean = -mu3*(2y-1)*1{v > tau3}, matching the strict cutoff form.
     """
     sign = 2.0 * y - 1.0
     if hasattr(mu3, "ndim") and mu3.ndim > 0:
@@ -188,14 +185,41 @@ def manipulator_logpdf(dx, v, y, mu3, tau3, sigma3, nu):
     else:
         v_b = v
         dx_b = dx
-    steep = 20.0
-    # sigmoid via stable formulation
+
+    if _is_torch(v_b) or _is_torch(tau3):
+        import torch
+        active = (v_b > tau3).to(dtype=dx_b.dtype)
+    else:
+        active = (v_b > tau3).astype(np.float64)
+
+    mean = -mu3 * sign * active
+    return _student_t_logpdf(dx_b, mean, sigma3, nu)
+
+
+def manipulator_logpdf_smooth(dx, v, y, mu3, tau3, sigma3, nu, steep=20.0):
+    """Smooth manipulator variant retained for future VI experiments.
+
+    This function is currently not used by ``mixture_logpdf``.
+    """
+    sign = 2.0 * y - 1.0
+    if hasattr(mu3, "ndim") and mu3.ndim > 0:
+        v_b = v[(None,) * mu3.ndim + (slice(None),)]
+        dx_b = dx[(None,) * mu3.ndim + (slice(None),)]
+        mu3 = mu3[..., None]
+        tau3 = tau3[..., None]
+        sigma3 = sigma3[..., None]
+        nu = nu[..., None]
+    else:
+        v_b = v
+        dx_b = dx
+
     z = steep * (v_b - tau3)
     if _is_torch(z):
         import torch
         active = torch.sigmoid(z)
     else:
         active = 1.0 / (1.0 + np.exp(-z))
+
     mean = -mu3 * sign * active
     return _student_t_logpdf(dx_b, mean, sigma3, nu)
 
@@ -291,22 +315,36 @@ def index_theta(theta, idx):
 
 
 # ---------------------------------------------------------------------------
-# OOP wrapper
+# OOP classes
 # ---------------------------------------------------------------------------
 
-from .core import Model  # noqa: E402  (placed after free functions to avoid cycles)
+from ..core import Model  # noqa: E402  (placed after free functions to avoid cycles)
 
 
-class GaussianLatentTypeModel(Model):
-    """K=3 Gaussian latent-type model from Example 3.1 of the paper.
-
-    Three trader types (informed, noise, manipulator) with volume-gated
-    softmax mixture weights.  Methods are thin wrappers over the
-    module-level kernels above so that the inference layer can swap in
-    alternative likelihoods by subclassing `Model`.
-    """
+class BaseModel(Model):
+    """Primary class implementation of the Gaussian latent-type model."""
 
     PARAM_NAMES = PARAM_NAMES
+
+    # Expose utility kernels on the class for direct use.
+    is_torch = staticmethod(_is_torch)
+    backend = staticmethod(_backend)
+    logsumexp = staticmethod(_logsumexp)
+    lgamma = staticmethod(_lgamma)
+    log = staticmethod(_log)
+    exp = staticmethod(_exp)
+    sqrt = staticmethod(_sqrt)
+    where = staticmethod(_where)
+    floor_scale = staticmethod(_floor_scale)
+    normal_logpdf = staticmethod(_normal_logpdf)
+    student_t_logpdf = staticmethod(_student_t_logpdf)
+    informed_logpdf = staticmethod(informed_logpdf)
+    noise_logpdf = staticmethod(noise_logpdf)
+    manipulator_logpdf = staticmethod(manipulator_logpdf)
+    manipulator_logpdf_smooth = staticmethod(manipulator_logpdf_smooth)
+    softmax_gate = staticmethod(softmax_gate)
+    stack_thetas = staticmethod(stack_thetas)
+    index_theta = staticmethod(index_theta)
 
     def mixture_logpdf(self, dx, v, y, theta):
         return mixture_logpdf(dx, v, y, theta)

@@ -17,34 +17,40 @@ The package is organised around three pluggable interfaces in ``core``:
 A concrete inference run::
 
     from pml_market import (
-        InverseProblem, GaussianLatentTypeModel, LatentTypePrior,
+        InverseProblem, BaseModel, BasePrior,
         SMCInference, VIInference,
     )
 
-    problem = InverseProblem(GaussianLatentTypeModel(), LatentTypePrior())
+    problem = InverseProblem(BaseModel(), BasePrior())
     smc = SMCInference(n_particles=1000, mcmc_steps=5)
     res = problem.infer(dx, v, smc, pi0=0.5, seed=0, record_pi_t=True)
 """
 
 from .core import Model, Prior, Inference, InverseProblem
-from .model import GaussianLatentTypeModel
-from .priors import LatentTypePrior
+from .models.base_model import BaseModel
+from .priors.base_prior import BasePrior
 from .volume_model import VolumeLognormalModel
 from .volume_prior import VolumeLognormalPrior, VolumeLognormalEBPrior
-from .smc import SMCInference
-from .vi import VIInference
+from .models.gaussian_vol_model import GaussianVolModel
+from .priors.gaussian_vol_prior import GaussianVolPrior
+from .inference.smc import SMCInference
+from .inference.vi import VIInference
 
 # Submodules remain importable for low-level access.
-from . import model, priors, synthetic, smc, vi, diagnostics, data  # noqa: F401
+from .models import base_model, gaussian_vol_model
+from .priors import base_prior, gaussian_vol_prior
+from . import synthetic, diagnostics, data
+from .inference import smc, vi  # noqa: F401
 from . import volume_model, volume_prior  # noqa: F401
 
 __all__ = [
     # OOP API
     "Model", "Prior", "Inference", "InverseProblem",
-    "GaussianLatentTypeModel", "LatentTypePrior",
+    "BaseModel", "BasePrior",
     "VolumeLognormalModel", "VolumeLognormalPrior", "VolumeLognormalEBPrior",
+    "GaussianVolModel", "GaussianVolPrior",
     "SMCInference", "VIInference",
     # Submodules
-    "model", "priors", "synthetic", "smc", "vi", "diagnostics", "data",
-    "volume_model", "volume_prior",
+    "base_model", "base_prior", "synthetic", "smc", "vi", "diagnostics", "data",
+    "gaussian_vol_model", "gaussian_vol_prior", "volume_model", "volume_prior",
 ]

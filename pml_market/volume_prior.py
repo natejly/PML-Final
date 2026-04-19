@@ -33,11 +33,11 @@ from typing import Any, List, Mapping, Optional, Sequence, Tuple
 import numpy as np
 
 from .core import Prior
-from .priors import (
-    LatentTypePrior,
+from .priors.base_prior import (
+    BasePrior,
     _softplus, _softplus_inv, _log_softplus_jac,
 )
-from .model import _is_torch
+from .models.base_model import _is_torch
 
 
 def _as_like(arr, ref):
@@ -62,7 +62,7 @@ class VolumeLognormalPrior(Prior):
     ----------
     base_prior : Prior, optional
         Prior on the increment-model parameters.  Defaults to
-        `LatentTypePrior()`.
+        `BasePrior()`.
     mu_v_sd : float
         Std of the N(0, .) prior on mu_v[y].
     sigma_v_sd : float
@@ -73,7 +73,7 @@ class VolumeLognormalPrior(Prior):
                  base_prior: Optional[Prior] = None,
                  mu_v_sd: float = MU_V_PRIOR_SD,
                  sigma_v_sd: float = SIGMA_V_PRIOR_SD):
-        self.base = base_prior or LatentTypePrior()
+        self.base = base_prior or BasePrior()
         self.mu_v_sd = float(mu_v_sd)
         self.sigma_v_sd = float(sigma_v_sd)
         self.UNCONSTRAINED_DIM = self.base.UNCONSTRAINED_DIM + 4
@@ -189,7 +189,7 @@ class VolumeLognormalEBPrior(Prior):
         log_sigma_mean: Sequence[float] = (0.0, 0.0),
         log_sigma_sd: Sequence[float] = (1.0, 1.0),
     ):
-        self.base = base_prior or LatentTypePrior()
+        self.base = base_prior or BasePrior()
         self.mu_v_mean = np.asarray(mu_v_mean, dtype=np.float64).reshape(2)
         self.mu_v_sd = np.asarray(mu_v_sd, dtype=np.float64).reshape(2)
         self.log_sigma_mean = np.asarray(log_sigma_mean, dtype=np.float64).reshape(2)

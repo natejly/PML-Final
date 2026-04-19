@@ -17,7 +17,8 @@ from typing import Any, Mapping, Optional
 
 import numpy as np
 
-from . import model as base_model
+from ..core import Model
+from . import base_model
 
 
 def _is_torch(x: Any) -> bool:
@@ -214,3 +215,29 @@ def sample_volumes_markov(
         if clip_min is not None:
             out[t] = max(float(clip_min), out[t])
     return out
+
+
+class GaussianVolModel(Model):
+    """Joint model with base price increments + Gaussian Markov volume bumps.
+
+    Volume condition implemented here:
+      v_t | v_{t-1}, sigma_v ~ Normal(v_{t-1}, sigma_v^2)
+    """
+
+    PARAM_NAMES = tuple(base_model.PARAM_NAMES) + ("sigma_v",)
+
+    volume_transition_logpdf = staticmethod(volume_transition_logpdf)
+    volume_loglik = staticmethod(volume_loglik)
+    joint_per_step_logpdf = staticmethod(joint_per_step_logpdf)
+    joint_loglik = staticmethod(joint_loglik)
+    sample_volumes_markov = staticmethod(sample_volumes_markov)
+
+    def mixture_logpdf(self, dx, v, y: int, theta: Mapping[str, Any]):
+        theta_x = {k: theta[k] for k in base_model.PARAM_NAMES}
+        theta_v = {"sigma_v": theta["sigma_v"]}
+        return joint_per_step_logpdf(dx, v, y, theta_x, theta_v)
+
+    def loglik(self, dx, v, y: int, theta: Mapping[str, Any]):
+        theta_x = {k: theta[k] for k in base_model.PARAM_NAMES}
+        theta_v = {"sigma_v": theta["sigma_v"]}
+        return joint_loglik(dx, v, y, theta_x, theta_v)

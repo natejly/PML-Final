@@ -18,8 +18,8 @@ import torch
 
 from . import synthetic
 from .core import Model, Prior
-from .model import GaussianLatentTypeModel, PARAM_NAMES as _DEFAULT_PARAM_NAMES
-from .priors import LatentTypePrior
+from .models.base_model import BaseModel, PARAM_NAMES as _DEFAULT_PARAM_NAMES
+from .priors.base_prior import BasePrior
 
 
 # ---------------------------------------------------------------------------
@@ -110,9 +110,9 @@ def kl_projection_gap(
     unconstrained space.
     """
     if model is None:
-        model = GaussianLatentTypeModel()
+        model = BaseModel()
     if prior is None:
-        prior = LatentTypePrior()
+        prior = BasePrior()
 
     if seed is not None:
         torch.manual_seed(seed)
@@ -220,13 +220,13 @@ def online_posterior(dx: np.ndarray, v: np.ndarray, pi0: float = 0.5,
     """Run SMC under both outcomes with ``record_pi_t=True`` and return the
     online posterior trace pi_t along with the final summary.
 
-    Defaults to the Gaussian latent-type model + matching prior; pass
+    Defaults to the base latent-type model + matching prior; pass
     alternative `Model` / `Prior` instances to swap them in.
     """
-    from .smc import SMCInference
+    from .inference.smc import SMCInference
     if model is None:
-        model = GaussianLatentTypeModel()
+        model = BaseModel()
     if prior is None:
-        prior = LatentTypePrior()
+        prior = BasePrior()
     smc = SMCInference(n_particles=n_particles, mcmc_steps=mcmc_steps)
     return smc.run(dx, v, model, prior, pi0=pi0, seed=seed, record_pi_t=True)

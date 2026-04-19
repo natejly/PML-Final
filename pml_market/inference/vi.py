@@ -28,7 +28,7 @@ from typing import Any, Dict, Optional
 import numpy as np
 import torch
 
-from .core import Inference, Model, Prior
+from ..core import Inference, Model, Prior
 
 
 # ---------------------------------------------------------------------------

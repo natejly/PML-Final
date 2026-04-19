@@ -8,10 +8,10 @@ The package is organised around three pluggable interfaces:
 
 A concrete inference run consists of choosing one of each, e.g.::
 
-    from pml_market import (GaussianLatentTypeModel, LatentTypePrior,
+    from pml_market import (BaseModel, BasePrior,
                             SMCInference, InverseProblem)
 
-    problem = InverseProblem(GaussianLatentTypeModel(), LatentTypePrior())
+    problem = InverseProblem(BaseModel(), BasePrior())
     smc = SMCInference(n_particles=1000, mcmc_steps=5)
     res = problem.infer(dx, v, smc, pi0=0.5, seed=0, record_pi_t=True)
 

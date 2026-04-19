@@ -1,6 +1,6 @@
 """Volume-aware joint model p(Δx, v | Y, θ).
 
-The base Gaussian latent-type model (`GaussianLatentTypeModel`) treats the
+The base Gaussian latent-type model (`BaseModel`) treats the
 trade-volume sequence v_{1:T} as exogenous: it conditions on v but never
 puts a probability on it.  This module factors the joint distribution as
 
@@ -33,8 +33,8 @@ from typing import Mapping, Any, Optional
 import numpy as np
 
 from .core import Model
-from .model import (
-    GaussianLatentTypeModel,
+from .models.base_model import (
+    BaseModel,
     _is_torch, _backend, _log,
 )
 
@@ -49,7 +49,7 @@ class VolumeLognormalModel(Model):
     ----------
     increment_model : Model, optional
         Inner conditional model for p(Δx | v, Y, θ_inc).  Defaults to
-        `GaussianLatentTypeModel()`.
+        `BaseModel()`.
 
     Notes
     -----
@@ -61,7 +61,7 @@ class VolumeLognormalModel(Model):
     """
 
     def __init__(self, increment_model: Optional[Model] = None):
-        self.increment_model = increment_model or GaussianLatentTypeModel()
+        self.increment_model = increment_model or BaseModel()
         # Param names = inner increment params + the two new volume tensors.
         self.PARAM_NAMES = tuple(self.increment_model.PARAM_NAMES) + ("mu_v", "sigma_v")
 
