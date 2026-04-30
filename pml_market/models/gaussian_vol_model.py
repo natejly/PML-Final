@@ -1,6 +1,6 @@
 """Markovian volume extension: Gaussian random-walk volume dynamics.
 
-This module keeps the existing price-increment model from `model.py` and adds
+This module keeps the existing price-increment model from `base_model.py` and adds
 an explicit Markov factor for volume:
 
     v_t | v_{t-1}, sigma_v ~ Normal(v_{t-1}, sigma_v^2),  t >= 2.
@@ -150,7 +150,7 @@ def joint_per_step_logpdf(
     """Per-step log factor for p(dx_t, v_t | history, y, theta_x, theta_v).
 
     This combines:
-      - base price-increment factor from `model.py`:
+      - base price-increment factor from `base_model.py`:
             p(dx_t | v_t, y, theta_x)
       - volume Markov factor:
             p(v_t | v_{t-1}, sigma_v)

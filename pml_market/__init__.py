@@ -29,8 +29,6 @@ A concrete inference run::
 from .core import Model, Prior, Inference, InverseProblem
 from .models.base_model import BaseModel
 from .priors.base_prior import BasePrior
-from .volume_model import VolumeLognormalModel
-from .volume_prior import VolumeLognormalPrior, VolumeLognormalEBPrior
 from .models.gaussian_vol_model import GaussianVolModel
 from .priors.gaussian_vol_prior import GaussianVolPrior
 from .inference.smc import SMCInference
@@ -41,16 +39,14 @@ from .models import base_model, gaussian_vol_model
 from .priors import base_prior, gaussian_vol_prior
 from . import synthetic, diagnostics, data
 from .inference import smc, vi  # noqa: F401
-from . import volume_model, volume_prior  # noqa: F401
 
 __all__ = [
     # OOP API
     "Model", "Prior", "Inference", "InverseProblem",
     "BaseModel", "BasePrior",
-    "VolumeLognormalModel", "VolumeLognormalPrior", "VolumeLognormalEBPrior",
     "GaussianVolModel", "GaussianVolPrior",
     "SMCInference", "VIInference",
     # Submodules
     "base_model", "base_prior", "synthetic", "smc", "vi", "diagnostics", "data",
-    "gaussian_vol_model", "gaussian_vol_prior", "volume_model", "volume_prior",
+    "gaussian_vol_model", "gaussian_vol_prior",
 ]

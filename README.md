@@ -9,11 +9,13 @@ Bayesian Inverse Problems," with experiments on real Polymarket data.
 - `pml_market/` — model, priors, SMC, VI, diagnostics, data adapters.
 - `notebooks/polymarket_data_pull.ipynb` — pulls binary markets via the public
   Polymarket Gamma/Data/CLOB APIs (stdlib only).
-- `notebooks/01_synthetic_sanity.ipynb` — reproduces the four synthetic
+- `notebooks/1_paper_replicate.ipynb` — reproduces the four synthetic
   experiments from the paper as a correctness gate.
-- `notebooks/02_single_market_deepdive.ipynb` — full diagnostic suite on one or
-  two resolved Polymarket binaries.
-- `notebooks/03_panel_evaluation.ipynb` — VI run over a panel of resolved
+- `notebooks/2_single_market_test_FG.ipynb` — full diagnostic suite on one
+  resolved Polymarket binary with the current Gaussian-volume model.
+- `notebooks/2_single_market_test_NL.ipynb` — earlier single-market notebook
+  using the older iid lognormal volume experiment.
+- `notebooks/3_panel_evaluation.ipynb` — VI run over a panel of resolved
   binary markets with calibration, Brier, and IG aggregates.
 
 ## Install
@@ -31,13 +33,13 @@ inference, choose one of each and call `problem.infer(...)`:
 ```python
 from pml_market.synthetic import simulate_history
 from pml_market import (
-    InverseProblem, GaussianLatentTypeModel, LatentTypePrior,
+    InverseProblem, BaseModel, BasePrior,
     SMCInference, VIInference,
 )
 
 dx, v, y = simulate_history(T=200, y_true=1, seed=0)
 
-problem = InverseProblem(GaussianLatentTypeModel(), LatentTypePrior())
+problem = InverseProblem(BaseModel(), BasePrior())
 smc = SMCInference(n_particles=500, mcmc_steps=3)
 res = problem.infer(dx, v, smc, pi0=0.5, seed=0, record_pi_t=True)
 print("posterior P(Y=1|H)=", res["posterior"], " truth=", y)
@@ -53,7 +55,7 @@ matching ABC in `pml_market.core` and pass the new instance to
 
 ## Modeling volume endogenously
 
-The default `GaussianLatentTypeModel` only specifies the conditional
+The default `BaseModel` only specifies the conditional
 likelihood
 
 \[
@@ -71,42 +73,38 @@ p(\Delta x_{1:T},\, v_{1:T} \mid Y = y, \theta)
 
 and keep the original increment factor unchanged.
 
-`pml_market.volume_model.VolumeLognormalModel` and
-`pml_market.volume_prior.VolumeLognormalPrior` implement a first-pass
-parametric form for the second factor:
+`GaussianVolModel` and `GaussianVolPrior` implement the current Markov
+volume extension:
 
 \[
-\log(1 + v_t) \;\sim\; \mathcal{N}\!\bigl(\mu_v[Y],\; \sigma_v[Y]^2\bigr),
-\quad t = 1,\ldots,T \text{ iid},
+v_t \mid v_{t-1}, \sigma_v
+  \;\sim\; \mathcal{N}\!\bigl(v_{t-1},\; \sigma_v^2\bigr),
+\quad t = 2,\ldots,T,
 \]
 
-with `mu_v[y] ~ N(0, 10^2)` and `sigma_v[y] ~ HalfNormal(5)` for
-`y in {0, 1}`. The wrapper composes on any inner increment Model, so the
-mixture-likelihood part stays plug-replaceable. The Bayes factor produced
-by SMC/VI is then over the *joint* observation, picking up Y-dependent
-asymmetries in trading activity in addition to the price-direction signal:
+with `sigma_v ~ HalfNormal(1)`. By default the first observed volume
+contributes no likelihood term, so the joint factor is the base increment
+likelihood plus the transition product over `t >= 2`. The Bayes factor
+produced by SMC/VI is then over the *joint* observation, picking up
+autocorrelated volume dynamics in addition to the price-direction signal:
 
 ```python
 from pml_market import (
-    InverseProblem, VolumeLognormalModel, VolumeLognormalPrior,
+    InverseProblem, GaussianVolModel, GaussianVolPrior,
     SMCInference,
 )
 
-problem = InverseProblem(VolumeLognormalModel(), VolumeLognormalPrior())
+problem = InverseProblem(GaussianVolModel(), GaussianVolPrior())
 smc = SMCInference(n_particles=500, mcmc_steps=3)
 res = problem.infer(dx, v, smc, pi0=0.5, seed=0)
 print("joint posterior P(Y=1|H)=", res["posterior"])
 ```
 
-Both the volume model and the volume prior accept a base instance, so you
-can mix and match — e.g. swap the inner increment model while keeping the
-lognormal volume term, or attach a different volume process by subclassing
-`Model` / `Prior` directly. To replace the iid lognormal with a
-heavier-tailed or autocorrelated volume process, copy
-`pml_market/volume_model.py` and `pml_market/volume_prior.py` as the
-starting point and edit `_volume_logpdf` plus the four extra prior terms.
+To attach a different volume process, subclass `Model` / `Prior` directly
+or add a new implementation under `pml_market/models` and
+`pml_market/priors`.
 
-Notebook `02_single_market_deepdive.ipynb` runs both models on the same
-resolved Polymarket market and reports the difference in log Bayes
-factor, posterior, and information gain so you can see how much the
-volume term contributes on real data.
+Notebook `2_single_market_test_FG.ipynb` runs the base and Gaussian-volume
+models on the same resolved Polymarket market and reports the difference
+in log Bayes factor, posterior, and information gain so you can see how
+much the volume term contributes on real data.
