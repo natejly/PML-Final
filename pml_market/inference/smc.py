@@ -2,11 +2,14 @@
 
 The marginal likelihood under outcome y is
 
-    m_y(h) = int p(Delta x_{1:T} | v_{1:T}, y, theta) Pi(d theta).
+    m_y(h) = int p(obs_{1:T} | y, theta) Pi(d theta).
 
 We estimate it with the standard particle-filter unbiased estimator: at each
 time t, accumulate
-    log m_y += logsumexp_i ( log w_{t-1}^{(i)} + log f_y(Delta x_t | v_t, theta^{(i)}) ).
+    log m_y += logsumexp_i (
+        log w_{t-1}^{(i)}
+        + log p(obs_t | obs_{<t}, y, theta^{(i)})
+    ).
 Particles are stored in the prior's unconstrained space; ESS-triggered
 systematic resampling and a random-walk Metropolis rejuvenation kernel target
 the filtering distribution Pi(theta | Delta x_{1:t}, v_{1:t}, y).
@@ -50,20 +53,18 @@ def _systematic_resample(weights: np.ndarray, rng: np.random.Generator) -> np.nd
 # ---------------------------------------------------------------------------
 
 
-def _eval_per_step_logf(z: np.ndarray, dx_t: float, v_t: float, y: int,
+def _eval_per_step_logf(z: np.ndarray, dx: np.ndarray, v: np.ndarray, y: int, t: int,
                         model: Model, prior: Prior) -> np.ndarray:
-    """log f_y(dx_t | v_t, theta(z^{(i)})) for each particle i.  Shape (N,)."""
+    """One-step log factor for each particle. Shape (N,)."""
     theta_batch, _ = prior.transform(z)
-    dx_arr = np.array([dx_t])
-    v_arr = np.array([v_t])
-    return model.mixture_logpdf(dx_arr, v_arr, y, theta_batch)[..., 0]
+    return model.incremental_logpdf(dx, v, y, theta_batch, t)
 
 
 def _eval_loglik_to_t(z: np.ndarray, dx: np.ndarray, v: np.ndarray, y: int,
                       t: int, model: Model, prior: Prior) -> np.ndarray:
-    """sum_{s<=t} log f_y(dx_s | v_s, theta(z^{(i)})).  Shape (N,)."""
+    """Prefix log-likelihood for each particle. Shape (N,)."""
     theta_batch, _ = prior.transform(z)
-    return model.mixture_logpdf(dx[:t], v[:t], y, theta_batch).sum(axis=-1)
+    return model.loglik(dx[:t], v[:t], y, theta_batch)
 
 
 def _rwmh_rejuvenate(z: np.ndarray, dx: np.ndarray, v: np.ndarray, y: int, t: int,
@@ -196,7 +197,7 @@ class SMCInference(Inference):
         step_size = self.initial_step_size
 
         for t in range(T):
-            log_f = _eval_per_step_logf(z, dx[t], v[t], y, model, prior)
+            log_f = _eval_per_step_logf(z, dx, v, y, t, model, prior)
             log_w_unnorm = log_w + log_f
             inc = logsumexp(log_w_unnorm)
             log_my += inc

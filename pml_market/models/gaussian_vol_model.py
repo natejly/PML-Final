@@ -237,6 +237,27 @@ class GaussianVolModel(Model):
         theta_v = {"sigma_v": theta["sigma_v"]}
         return joint_per_step_logpdf(dx, v, y, theta_x, theta_v)
 
+    def incremental_logpdf(self, dx, v, y: int, theta: Mapping[str, Any], t: int):
+        """One-step joint factor for SMC.
+
+        At t=0 the volume path has no previous observation, so the default
+        convention is to contribute only the price-increment factor. For
+        t>=1, add the Gaussian Markov transition p(v_t | v_{t-1}, sigma_v).
+        """
+        theta_x = {k: theta[k] for k in base_model.PARAM_NAMES}
+        log_dx = base_model.mixture_logpdf(
+            dx[t:t + 1],
+            v[t:t + 1],
+            y,
+            theta_x,
+        )[..., 0]
+
+        if t == 0:
+            return log_dx
+
+        log_v = _normal_logpdf(v[t], v[t - 1], theta["sigma_v"])
+        return log_dx + log_v
+
     def loglik(self, dx, v, y: int, theta: Mapping[str, Any]):
         theta_x = {k: theta[k] for k in base_model.PARAM_NAMES}
         theta_v = {"sigma_v": theta["sigma_v"]}

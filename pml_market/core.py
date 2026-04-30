@@ -15,7 +15,8 @@ A concrete inference run consists of choosing one of each, e.g.::
     smc = SMCInference(n_particles=1000, mcmc_steps=5)
     res = problem.infer(dx, v, smc, pi0=0.5, seed=0, record_pi_t=True)
 
-To plug in a new model you subclass `Model` and implement `mixture_logpdf`.
+To plug in a new model you subclass `Model` and implement
+`incremental_logpdf`, the one-step predictive factor used by SMC.
 For a new prior subclass `Prior` and implement the bijector pair plus
 `log_prior_unconstrained`.  For a new inference algorithm subclass
 `Inference` and implement `run`.
@@ -35,9 +36,9 @@ import numpy as np
 
 
 class Model(ABC):
-    """Likelihood for log-odds increments under a binary outcome y in {0, 1}.
+    """Likelihood for histories under a binary outcome y in {0, 1}.
 
-    Subclasses must declare `PARAM_NAMES` and implement `mixture_logpdf`.
+    Subclasses must declare `PARAM_NAMES` and implement `incremental_logpdf`.
     Backend dispatch (numpy / torch) is the responsibility of the subclass:
     methods should accept either array type and return the same kind.
     """
@@ -45,16 +46,48 @@ class Model(ABC):
     PARAM_NAMES: Tuple[str, ...] = ()
 
     @abstractmethod
-    def mixture_logpdf(self, dx, v, y: int, theta: Mapping[str, Any]):
-        """Per-step log f_y(dx_t | v_t, theta).  Returns shape (..., T)."""
+    def incremental_logpdf(
+        self,
+        dx,
+        v,
+        y: int,
+        theta: Mapping[str, Any],
+        t: int,
+    ):
+        """One-step log factor for SMC, shape (...,).
+
+        This is the canonical model contribution to Algorithm 1's
+        incremental weights:
+
+            log p(obs_t | obs_<t, Y=y, theta).
+
+        `dx` and `v` are the full observed arrays and `t` is the current
+        zero-based time index.  Implementations may inspect history up to
+        and including `t`, but must not use future observations.
+        """
 
     def loglik(self, dx, v, y: int, theta: Mapping[str, Any]):
-        """Total log-likelihood sum_t log f_y(dx_t | v_t, theta).
+        """Total log-likelihood from the canonical one-step factors.
 
-        Default implementation sums `mixture_logpdf` over the time axis.
-        Override for per-model speedups.
+        Default implementation sums `incremental_logpdf` over time. Override
+        with a vectorized implementation when speed matters, but keep it
+        mathematically equivalent to the sum of one-step factors.
         """
-        return self.mixture_logpdf(dx, v, y, theta).sum(axis=-1)
+        vals = [
+            self.incremental_logpdf(dx, v, y, theta, t)
+            for t in range(int(dx.shape[0]))
+        ]
+        if not vals:
+            return 0.0
+        first = vals[0]
+        try:
+            import torch
+
+            if isinstance(first, torch.Tensor):
+                return torch.stack(vals, dim=-1).sum(dim=-1)
+        except ImportError:
+            pass
+        return np.stack(vals, axis=-1).sum(axis=-1)
 
 
 # ---------------------------------------------------------------------------

@@ -270,11 +270,16 @@ def softmax_gate(v, omega, gamma):
 
 
 # ---------------------------------------------------------------------------
-# Mixture log-pdf and full log-likelihood
+# Conditional log-pdf helpers and full log-likelihood
 # ---------------------------------------------------------------------------
 
 def mixture_logpdf(dx, v, y, theta: Mapping[str, Any]):
-    """log f_y(dx_t | v_t, theta) for each t. Returns shape (..., T)."""
+    """Vectorized helper for log f_y(dx_t | v_t, theta). Shape (..., T).
+
+    This is the iid/current-observation conditional factor from the paper's
+    base model. SMC calls `incremental_logpdf`; this helper remains useful for
+    vectorized full-history likelihoods and diagnostics.
+    """
     log_rho = softmax_gate(v, theta["omega"], theta["gamma"])  # (..., T, K)
     log_f1 = informed_logpdf(dx, v, y,
                              theta["mu1"], theta["lam1"], theta["sigma1"], theta["kappa1"])
@@ -348,6 +353,9 @@ class BaseModel(Model):
 
     def mixture_logpdf(self, dx, v, y, theta):
         return mixture_logpdf(dx, v, y, theta)
+
+    def incremental_logpdf(self, dx, v, y, theta, t: int):
+        return mixture_logpdf(dx[t:t + 1], v[t:t + 1], y, theta)[..., 0]
 
     def loglik(self, dx, v, y, theta):
         return loglik(dx, v, y, theta)

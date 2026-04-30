@@ -116,3 +116,6 @@ class VolumeLognormalModel(Model):
         log_inc = self.increment_model.mixture_logpdf(dx, v, y, inc_theta)
         log_vol = self._volume_logpdf(v, y, theta)
         return log_inc + log_vol
+
+    def incremental_logpdf(self, dx, v, y: int, theta: Mapping[str, Any], t: int):
+        return self.mixture_logpdf(dx[t:t + 1], v[t:t + 1], y, theta)[..., 0]

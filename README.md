@@ -108,3 +108,10 @@ Notebook `2_single_market_test_FG.ipynb` runs the base and Gaussian-volume
 models on the same resolved Polymarket market and reports the difference
 in log Bayes factor, posterior, and information gain so you can see how
 much the volume term contributes on real data.
+
+
+**Change Trace (Per-Commit):**
+
+1. Removed legacy names for base model
+2. Updated SMC: requires model to expose an incremental_log_pdf method for step 4 of SMC. Difference is, takes pointer to the whole array and a specific time (instead of pre-subsetting in SMC and passing in just that point-in time)
+
