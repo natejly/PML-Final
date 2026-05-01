@@ -1,8 +1,0 @@
-{
-  "argv": ["/Users/natejly/miniconda3/bin/python", "-m", "ipykernel_launcher", "-f", "{connection_file}"],
-  "display_name": "Python 3 (pml conda)",
-  "language": "python",
-  "env": {
-    "IPYTHONDIR": "/Users/natejly/Documents/GitHub/PML-Final/.kernels/.ipython"
-  }
-}

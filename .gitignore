@@ -4,3 +4,8 @@ output/
 .DS_Store
 cache/
 notebooks/*.executed.ipynb
+
+# ignore output directory and hidden directories
+outputs/
+.*/
+!.git/
