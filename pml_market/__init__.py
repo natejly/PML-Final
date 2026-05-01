@@ -29,14 +29,40 @@ A concrete inference run::
 from .core import Model, Prior, Inference, InverseProblem
 from .models.base_model import BaseModel
 from .priors.base_prior import BasePrior
+from .models.burst_mispricing_log_ar_vol_model import BurstMispricingLogARVolModel
+from .priors.burst_mispricing_log_ar_vol_prior import BurstMispricingLogARVolPrior
 from .models.gaussian_vol_model import GaussianVolModel
 from .priors.gaussian_vol_prior import GaussianVolPrior
+from .models.log_ar_vol_model import LogARVolModel
+from .priors.log_ar_vol_prior import LogARVolPrior
+from .models.mispricing_log_ar_vol_model import MispricingLogARVolModel
+from .priors.mispricing_log_ar_vol_prior import MispricingLogARVolPrior
+from .models.reversal_momentum_burst_log_ar_vol_model import (
+    ReversalMomentumBurstLogARVolModel,
+)
+from .priors.reversal_momentum_burst_log_ar_vol_prior import (
+    ReversalMomentumBurstLogARVolPrior,
+)
 from .inference.smc import SMCInference
 from .inference.vi import VIInference
 
 # Submodules remain importable for low-level access.
-from .models import base_model, gaussian_vol_model
-from .priors import base_prior, gaussian_vol_prior
+from .models import (
+    base_model,
+    burst_mispricing_log_ar_vol_model,
+    gaussian_vol_model,
+    log_ar_vol_model,
+    mispricing_log_ar_vol_model,
+    reversal_momentum_burst_log_ar_vol_model,
+)
+from .priors import (
+    base_prior,
+    burst_mispricing_log_ar_vol_prior,
+    gaussian_vol_prior,
+    log_ar_vol_prior,
+    mispricing_log_ar_vol_prior,
+    reversal_momentum_burst_log_ar_vol_prior,
+)
 from . import synthetic, diagnostics, data
 from .inference import smc, vi  # noqa: F401
 
@@ -44,9 +70,18 @@ __all__ = [
     # OOP API
     "Model", "Prior", "Inference", "InverseProblem",
     "BaseModel", "BasePrior",
+    "BurstMispricingLogARVolModel", "BurstMispricingLogARVolPrior",
     "GaussianVolModel", "GaussianVolPrior",
+    "LogARVolModel", "LogARVolPrior",
+    "MispricingLogARVolModel", "MispricingLogARVolPrior",
+    "ReversalMomentumBurstLogARVolModel", "ReversalMomentumBurstLogARVolPrior",
     "SMCInference", "VIInference",
     # Submodules
     "base_model", "base_prior", "synthetic", "smc", "vi", "diagnostics", "data",
+    "burst_mispricing_log_ar_vol_model", "burst_mispricing_log_ar_vol_prior",
     "gaussian_vol_model", "gaussian_vol_prior",
+    "log_ar_vol_model", "log_ar_vol_prior",
+    "mispricing_log_ar_vol_model", "mispricing_log_ar_vol_prior",
+    "reversal_momentum_burst_log_ar_vol_model",
+    "reversal_momentum_burst_log_ar_vol_prior",
 ]

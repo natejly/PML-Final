@@ -114,4 +114,5 @@ much the volume term contributes on real data.
 
 1. Removed legacy names for base model
 2. Updated SMC: requires model to expose an incremental_log_pdf method for step 4 of SMC. Difference is, takes pointer to the whole array and a specific time (instead of pre-subsetting in SMC and passing in just that point-in time)
+3. Implemented 4 new iterations of volume modeling, doing baseline testing on the 2 override markets. Tried log autoregressive (AR) model (would be symmetric in Y, so non-identifiable). This was the only one tried under volume-only-Markov. Then, proceeded with joint Markov model, trying 1. mispricing log AR model 2. mispricing + burst (non-Y dependent) AR model 3. mispricing + burst + momentum AR model. Reversal/mispricing means that if the increment in the previous period was in the opposite direction of the outcome, then volume increases due to mispricing opportunity. momentum means that if the increment in the previous period is in direction of outcome, then volume increases due to traders piling onto the markets (e.g. news getting absorbed over time).
 
