@@ -174,8 +174,7 @@ def _softplus(z):
     if _is_torch(z):
         import torch
         return torch.nn.functional.softplus(z)
-    # numerically stable softplus
-    return np.where(z > 0, z + np.log1p(np.exp(-z)), np.log1p(np.exp(z)))
+    return np.logaddexp(0.0, z)
 
 
 def _softplus_inv(x):
@@ -342,7 +341,9 @@ def log_prior_unconstrained(z) -> Any:
     if _is_torch(z_nu):
         log_z = z_nu.log()
     else:
-        log_z = np.log(z_nu)
+        log_z = np.full_like(np.asarray(z_nu), -np.inf, dtype=np.float64)
+        mask = np.asarray(z_nu) > 0
+        log_z = np.where(mask, np.log(np.maximum(z_nu, np.finfo(float).tiny)), log_z)
     lp = lp + (
         (NU_GAMMA_SHAPE - 1.0) * log_z
         - z_nu / NU_GAMMA_SCALE

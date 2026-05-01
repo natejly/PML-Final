@@ -21,6 +21,7 @@ import json
 import os
 import time
 import math
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 from urllib.error import HTTPError, URLError
@@ -28,6 +29,11 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import numpy as np
+
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover - tqdm is optional for package users.
+    tqdm = None
 
 
 GAMMA_API = "https://gamma-api.polymarket.com"
@@ -386,11 +392,52 @@ def _trajectory_from_market(market: dict, bucket_minutes: int = 1,
 # Panel fetcher with caching
 # ---------------------------------------------------------------------------
 
+def _market_cache_key(market: dict) -> str:
+    return str(market.get("condition_id") or market.get("slug") or "")
+
+
+def _trajectory_cache_key(trajectory: dict) -> str:
+    meta = trajectory.get("metadata", {})
+    return str(meta.get("condition_id") or meta.get("slug") or "")
+
+
+def _fetch_market_trajectory_for_panel(
+    market: dict,
+    *,
+    bucket_minutes: int,
+    min_trades: int,
+    use_clob_history: bool,
+    timeout: int,
+) -> Optional[dict]:
+    try:
+        trades = get_trades(market["condition_id"], timeout=timeout)
+    except (HTTPError, URLError, TimeoutError):
+        return None
+    if len(trades) < min_trades:
+        return None
+
+    history: List[dict] = []
+    if use_clob_history:
+        winner = _resolved_winner_index(market) or 0
+        try:
+            history = get_price_history(market["token_ids"][winner],
+                                        fidelity_minutes=bucket_minutes,
+                                        timeout=timeout)
+        except (HTTPError, URLError, TimeoutError):
+            history = []
+
+    traj = build_trajectory(market, trades, bucket_minutes=bucket_minutes,
+                            price_history=history)
+    if traj is None or traj["horizon"] < 5:
+        return None
+    return traj
+
 def list_resolved_binary_markets(limit: int = 200, min_volume: float = 5_000.0,
                                  page_size: int = 100, max_pages: int = 50,
                                  timeout: int = 20,
                                  recent_first: bool = True,
-                                 keyword_filter: Optional[List[str]] = None) -> List[dict]:
+                                 keyword_filter: Optional[List[str]] = None,
+                                 verbose: bool = False) -> List[dict]:
     """Page through Gamma `/markets?closed=true` and keep binary markets with a
     clear winner and at least `min_volume` total notional volume.
 
@@ -407,35 +454,48 @@ def list_resolved_binary_markets(limit: int = 200, min_volume: float = 5_000.0,
     if recent_first:
         base_params["order"] = "endDate"
         base_params["ascending"] = "false"
-    for page in range(max_pages):
-        params = dict(base_params)
-        params["offset"] = page * page_size
-        try:
-            batch = _fetch_json(GAMMA_API, "/markets", params, timeout=timeout)
-        except HTTPError as exc:
-            if exc.code == 400 and page > 0:
-                break
-            raise
-        if not batch:
-            break
-        for m in batch:
+    page_iter = range(max_pages)
+    progress = None
+    if verbose and tqdm is not None:
+        progress = tqdm(page_iter, desc="scan candidate pages", unit="page")
+        page_iter = progress
+    try:
+        for page in page_iter:
+            params = dict(base_params)
+            params["offset"] = page * page_size
             try:
-                mn = _normalize_market(m)
-            except (ValueError, TypeError, KeyError):
-                continue
-            if (mn["closed"] and len(mn["outcomes"]) == 2
-                    and len(mn["token_ids"]) == 2
-                    and _resolved_winner_index(mn) is not None
-                    and mn["volume"] >= min_volume):
-                if keyword_filter is not None:
-                    q = mn["question"].lower()
-                    if not any(kw.lower() in q for kw in keyword_filter):
-                        continue
-                out.append(mn)
-                if len(out) >= limit:
-                    return out
-        if len(batch) < page_size:
-            break
+                batch = _fetch_json(GAMMA_API, "/markets", params, timeout=timeout)
+            except HTTPError as exc:
+                if exc.code == 400 and page > 0:
+                    break
+                raise
+            if not batch:
+                break
+            for m in batch:
+                try:
+                    mn = _normalize_market(m)
+                except (ValueError, TypeError, KeyError):
+                    continue
+                if (mn["closed"] and len(mn["outcomes"]) == 2
+                        and len(mn["token_ids"]) == 2
+                        and _resolved_winner_index(mn) is not None
+                        and mn["volume"] >= min_volume):
+                    if keyword_filter is not None:
+                        q = mn["question"].lower()
+                        if not any(kw.lower() in q for kw in keyword_filter):
+                            continue
+                    out.append(mn)
+                    if progress is not None:
+                        progress.set_postfix(candidates=len(out))
+                    if len(out) >= limit:
+                        return out
+            if progress is not None:
+                progress.set_postfix(candidates=len(out))
+            if len(batch) < page_size:
+                break
+    finally:
+        if progress is not None:
+            progress.close()
     return out
 
 
@@ -450,6 +510,8 @@ def fetch_resolved_binary_markets(
     sleep_between: float = 0.05,
     verbose: bool = True,
     keyword_filter: Optional[List[str]] = None,
+    fetch_workers: int = 1,
+    candidate_max_pages: int = 50,
 ) -> List[dict]:
     """Build a panel of resolved binary market trajectories.
 
@@ -457,52 +519,131 @@ def fetch_resolved_binary_markets(
     re-runs are free. Skips markets with fewer than `min_trades` trades or
     horizon < 5.
     """
+    trajectories: List[dict] = []
     if cache_path is not None and os.path.exists(cache_path):
         with open(cache_path, "r") as f:
             payload = json.load(f)
+        trajectories = list(payload.get("trajectories", []))
         if verbose:
-            print(f"loaded {len(payload['trajectories'])} cached trajectories"
+            print(f"loaded {len(trajectories)} cached trajectories"
                   f" from {cache_path}")
-        return payload["trajectories"]
+        if len(trajectories) >= n:
+            return trajectories
+        if verbose:
+            print(f"cache has {len(trajectories)}/{n}; fetching top-up")
 
     # When keyword filtering we need to scan many more pages to find enough matches.
     search_limit = int(n * (20 if keyword_filter else 4))
+    if verbose:
+        print(f"scanning candidate markets up to limit={search_limit}", flush=True)
     candidates = list_resolved_binary_markets(
         limit=search_limit, min_volume=min_volume, timeout=timeout,
-        keyword_filter=keyword_filter,
+        keyword_filter=keyword_filter, max_pages=candidate_max_pages,
+        verbose=verbose,
     )
+    seen_keys = {_trajectory_cache_key(traj) for traj in trajectories}
+    seen_keys.discard("")
+    candidates = [
+        market for market in candidates
+        if _market_cache_key(market) not in seen_keys
+    ]
     if verbose:
         print(f"found {len(candidates)} candidate resolved markets;"
               f" pulling histories until we have {n}")
 
-    trajectories: List[dict] = []
-    for i, market in enumerate(candidates):
-        if len(trajectories) >= n:
-            break
-        try:
-            trades = get_trades(market["condition_id"], timeout=timeout)
-        except (HTTPError, URLError, TimeoutError):
-            continue
-        if len(trades) < min_trades:
-            continue
-        history: List[dict] = []
-        if use_clob_history:
-            winner = _resolved_winner_index(market) or 0
+    progress = None
+    candidate_iter = candidates
+    if verbose and tqdm is not None:
+        progress = tqdm(candidates, desc="fetch histories", unit="market")
+        candidate_iter = progress
+
+    try:
+        fetch_workers = max(int(fetch_workers), 1)
+        if fetch_workers == 1:
+            for i, market in enumerate(candidate_iter):
+                if len(trajectories) >= n:
+                    break
+                traj = _fetch_market_trajectory_for_panel(
+                    market,
+                    bucket_minutes=bucket_minutes,
+                    min_trades=min_trades,
+                    use_clob_history=use_clob_history,
+                    timeout=timeout,
+                )
+                if traj is None:
+                    continue
+                trajectories.append(traj)
+                if progress is not None:
+                    progress.set_postfix(
+                        kept=f"{len(trajectories)}/{n}",
+                        horizon=traj["horizon"],
+                        trades=traj["metadata"]["trade_count"],
+                    )
+                elif verbose and len(trajectories) % 5 == 0:
+                    print(f"  [{len(trajectories)}/{n}] kept slug={market['slug']!r} "
+                          f"horizon={traj['horizon']} "
+                          f"trades={traj['metadata']['trade_count']}")
+                time.sleep(sleep_between)
+        else:
+            executor = ThreadPoolExecutor(max_workers=fetch_workers)
+            futures = {}
+            source_iter = iter(candidate_iter)
+
+            def submit_next() -> bool:
+                try:
+                    market = next(source_iter)
+                except StopIteration:
+                    return False
+                future = executor.submit(
+                    _fetch_market_trajectory_for_panel,
+                    market,
+                    bucket_minutes=bucket_minutes,
+                    min_trades=min_trades,
+                    use_clob_history=use_clob_history,
+                    timeout=timeout,
+                )
+                futures[future] = market
+                return True
+
             try:
-                history = get_price_history(market["token_ids"][winner],
-                                            fidelity_minutes=bucket_minutes,
-                                            timeout=timeout)
-            except (HTTPError, URLError, TimeoutError):
-                history = []
-        traj = build_trajectory(market, trades, bucket_minutes=bucket_minutes,
-                                price_history=history)
-        if traj is None or traj["horizon"] < 5:
-            continue
-        trajectories.append(traj)
-        if verbose and len(trajectories) % 5 == 0:
-            print(f"  [{len(trajectories)}/{n}] kept slug={market['slug']!r} "
-                  f"horizon={traj['horizon']} trades={len(trades)}")
-        time.sleep(sleep_between)
+                for _ in range(fetch_workers):
+                    if not submit_next():
+                        break
+                    if sleep_between > 0:
+                        time.sleep(sleep_between)
+
+                while futures and len(trajectories) < n:
+                    done, _ = wait(futures, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        market = futures.pop(future)
+                        try:
+                            traj = future.result()
+                        except Exception:
+                            traj = None
+                        if traj is not None:
+                            trajectories.append(traj)
+                            if progress is not None:
+                                progress.set_postfix(
+                                    kept=f"{len(trajectories)}/{n}",
+                                    horizon=traj["horizon"],
+                                    trades=traj["metadata"]["trade_count"],
+                                )
+                            elif verbose and len(trajectories) % 5 == 0:
+                                print(f"  [{len(trajectories)}/{n}] kept "
+                                      f"slug={market['slug']!r} "
+                                      f"horizon={traj['horizon']} "
+                                      f"trades={traj['metadata']['trade_count']}")
+                        if len(trajectories) < n:
+                            submit_next()
+                            if sleep_between > 0:
+                                time.sleep(sleep_between)
+                for future in futures:
+                    future.cancel()
+            finally:
+                executor.shutdown(wait=True, cancel_futures=True)
+    finally:
+        if progress is not None:
+            progress.close()
 
     if cache_path is not None:
         os.makedirs(os.path.dirname(cache_path) or ".", exist_ok=True)
