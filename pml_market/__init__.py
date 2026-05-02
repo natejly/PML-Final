@@ -43,6 +43,11 @@ from .models.reversal_momentum_burst_log_ar_vol_model import (
 from .priors.reversal_momentum_burst_log_ar_vol_prior import (
     ReversalMomentumBurstLogARVolPrior,
 )
+from .samplers import (
+    BurstMispricingLogARVolSampler,
+    MispricingLogARVolSampler,
+    ReversalMomentumBurstLogARVolSampler,
+)
 from .inference.smc import SMCInference
 from .inference.vi import VIInference
 
@@ -63,7 +68,7 @@ from .priors import (
     mispricing_log_ar_vol_prior,
     reversal_momentum_burst_log_ar_vol_prior,
 )
-from . import synthetic, diagnostics, data
+from . import synthetic, diagnostics, data, samplers
 from .inference import smc, vi  # noqa: F401
 
 __all__ = [
@@ -75,9 +80,13 @@ __all__ = [
     "LogARVolModel", "LogARVolPrior",
     "MispricingLogARVolModel", "MispricingLogARVolPrior",
     "ReversalMomentumBurstLogARVolModel", "ReversalMomentumBurstLogARVolPrior",
+    "BurstMispricingLogARVolSampler",
+    "MispricingLogARVolSampler",
+    "ReversalMomentumBurstLogARVolSampler",
     "SMCInference", "VIInference",
     # Submodules
-    "base_model", "base_prior", "synthetic", "smc", "vi", "diagnostics", "data",
+    "base_model", "base_prior", "synthetic", "samplers",
+    "smc", "vi", "diagnostics", "data",
     "burst_mispricing_log_ar_vol_model", "burst_mispricing_log_ar_vol_prior",
     "gaussian_vol_model", "gaussian_vol_prior",
     "log_ar_vol_model", "log_ar_vol_prior",

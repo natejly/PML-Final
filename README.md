@@ -118,3 +118,17 @@ much the volume term contributes on real data.
 4. Small changes to gitignore (previous commit relative to this one)
 5. Change to base_prior log for numerical stability and added time bar for data pulling
 6. Added main evaluation script. includes runtime flags for parallelization, number of markets, etc. After 30Apr26 run finished, added an evaluation script. Currently WIP, need to reduce to necessary set of results.
+7. Created samplers for the 3 jointly Markov models, and performed experiment 1 from the paper in analysis script. Used T=500, 1000 samples, and did inference with 1500 particles. Computed an estimated outcome separation gap by using the expected value under the true forward law of the log likliehood difference. The expectation was calculated using the empirical distribution from a fresh draw. Got results from analyze_synthetic_posterior_concentration.py script. Found that the most flexible model class (burst + momentum + reversal) enlarges the nuisance, thus giving wrong-outcome model more ways to imitate true-outcome histories (NOTE: may have a symmetry).
+
+
+Issue Log:
+
+1. There is a potential issue where the volume is not strictly positive in the forward process. If you choose a regime of parameters in the forward model s.t. the mean is sufficiently away from 0, this does not really matter. But, this may negatively affect the quality of inference as in real markets, there may be periods of 0 volume (or at least the data we pull says 0 volume)
+
+2. There is a symmetry in the burst + momentum + reversal model. Reversal occurs when the price movement was in the wrong direction in the previous period, causing volume to increase in the next period due to mispricing (e.g. for informed traders). Momentum occurs when the price movement was in the correct direction in the previous period, causing volume to increase in the next period (e.g. uninformed traders follow informed traders, slow to fully price information). BUT there can be a symmetry by sign flip: trending towards truth under Y = 1 can be re-explained with our nuisance structure by reversal after mispricing if Y = 0. 
+
+#Todo: 
+2a. Create an asymmetry that is economically explainable in the burst + momentum + reversal model
+2b. Redo market analysis for this model. Need to update parallelization structure for just 1 model, parallelizing across markets.
+2c. Redo posterior concentration analysis for this model
+
