@@ -6,6 +6,7 @@ cache/
 notebooks/*.executed.ipynb
 
 # ignore output directory and hidden directories
-outputs/
 .*/
 !.git/
+*.json
+*.pkl

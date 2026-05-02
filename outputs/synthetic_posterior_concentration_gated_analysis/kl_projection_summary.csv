@@ -1,0 +1,7 @@
+model,horizon,true_expected_loglik_per_step,best_wrong_expected_loglik_per_step,delta_hat,optimizer_success,optimizer_message
+gated_reversal_momentum_burst,10,-1.5241306841458033,-1.5338600251515573,0.009729341005753955,False,
+gated_reversal_momentum_burst,25,-1.6322117062355983,-1.6465650058504524,0.014353299614854098,False,
+gated_reversal_momentum_burst,50,-1.6724088290950487,-1.686425293225021,0.014016464129972261,False,
+gated_reversal_momentum_burst,100,-1.6867814131025072,-1.700244597520959,0.013463184418451846,False,
+gated_reversal_momentum_burst,200,-1.69236148877232,-1.7052992183067672,0.012937729534447273,False,
+gated_reversal_momentum_burst,500,-1.6955973471170545,-1.7082253850767068,0.012628037959652394,False,
