@@ -31,6 +31,12 @@ from .models.base_model import BaseModel
 from .priors.base_prior import BasePrior
 from .models.burst_mispricing_log_ar_vol_model import BurstMispricingLogARVolModel
 from .priors.burst_mispricing_log_ar_vol_prior import BurstMispricingLogARVolPrior
+from .models.gated_reversal_momentum_burst_log_ar_vol_model import (
+    GatedReversalMomentumBurstLogARVolModel,
+)
+from .priors.gated_reversal_momentum_burst_log_ar_vol_prior import (
+    GatedReversalMomentumBurstLogARVolPrior,
+)
 from .models.gaussian_vol_model import GaussianVolModel
 from .priors.gaussian_vol_prior import GaussianVolPrior
 from .models.log_ar_vol_model import LogARVolModel
@@ -45,6 +51,7 @@ from .priors.reversal_momentum_burst_log_ar_vol_prior import (
 )
 from .samplers import (
     BurstMispricingLogARVolSampler,
+    GatedReversalMomentumBurstLogARVolSampler,
     MispricingLogARVolSampler,
     ReversalMomentumBurstLogARVolSampler,
 )
@@ -55,6 +62,7 @@ from .inference.vi import VIInference
 from .models import (
     base_model,
     burst_mispricing_log_ar_vol_model,
+    gated_reversal_momentum_burst_log_ar_vol_model,
     gaussian_vol_model,
     log_ar_vol_model,
     mispricing_log_ar_vol_model,
@@ -63,6 +71,7 @@ from .models import (
 from .priors import (
     base_prior,
     burst_mispricing_log_ar_vol_prior,
+    gated_reversal_momentum_burst_log_ar_vol_prior,
     gaussian_vol_prior,
     log_ar_vol_prior,
     mispricing_log_ar_vol_prior,
@@ -76,11 +85,13 @@ __all__ = [
     "Model", "Prior", "Inference", "InverseProblem",
     "BaseModel", "BasePrior",
     "BurstMispricingLogARVolModel", "BurstMispricingLogARVolPrior",
+    "GatedReversalMomentumBurstLogARVolModel", "GatedReversalMomentumBurstLogARVolPrior",
     "GaussianVolModel", "GaussianVolPrior",
     "LogARVolModel", "LogARVolPrior",
     "MispricingLogARVolModel", "MispricingLogARVolPrior",
     "ReversalMomentumBurstLogARVolModel", "ReversalMomentumBurstLogARVolPrior",
     "BurstMispricingLogARVolSampler",
+    "GatedReversalMomentumBurstLogARVolSampler",
     "MispricingLogARVolSampler",
     "ReversalMomentumBurstLogARVolSampler",
     "SMCInference", "VIInference",
@@ -88,6 +99,8 @@ __all__ = [
     "base_model", "base_prior", "synthetic", "samplers",
     "smc", "vi", "diagnostics", "data",
     "burst_mispricing_log_ar_vol_model", "burst_mispricing_log_ar_vol_prior",
+    "gated_reversal_momentum_burst_log_ar_vol_model",
+    "gated_reversal_momentum_burst_log_ar_vol_prior",
     "gaussian_vol_model", "gaussian_vol_prior",
     "log_ar_vol_model", "log_ar_vol_prior",
     "mispricing_log_ar_vol_model", "mispricing_log_ar_vol_prior",

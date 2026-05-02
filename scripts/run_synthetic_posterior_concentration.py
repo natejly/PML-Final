@@ -43,6 +43,9 @@ from pml_market import (
     BurstMispricingLogARVolModel,
     BurstMispricingLogARVolPrior,
     BurstMispricingLogARVolSampler,
+    GatedReversalMomentumBurstLogARVolModel,
+    GatedReversalMomentumBurstLogARVolPrior,
+    GatedReversalMomentumBurstLogARVolSampler,
     InverseProblem,
     MispricingLogARVolModel,
     MispricingLogARVolPrior,
@@ -54,11 +57,17 @@ from pml_market import (
 )
 
 
-MODEL_ORDER = ("reversal", "reversal_burst", "reversal_momentum_burst")
+MODEL_ORDER = (
+    "reversal",
+    "reversal_burst",
+    "reversal_momentum_burst",
+    "gated_reversal_momentum_burst",
+)
 MODEL_OFFSETS = {
     "reversal": 11,
     "reversal_burst": 23,
     "reversal_momentum_burst": 37,
+    "gated_reversal_momentum_burst": 41,
 }
 
 
@@ -113,6 +122,13 @@ def _model_prior_sampler(model_name: str):
         return (
             ReversalMomentumBurstLogARVolModel(),
             ReversalMomentumBurstLogARVolPrior(),
+            sampler,
+        )
+    if model_name == "gated_reversal_momentum_burst":
+        sampler = GatedReversalMomentumBurstLogARVolSampler()
+        return (
+            GatedReversalMomentumBurstLogARVolModel(),
+            GatedReversalMomentumBurstLogARVolPrior(),
             sampler,
         )
     raise ValueError(f"unknown model {model_name!r}; expected one of {MODEL_ORDER}")

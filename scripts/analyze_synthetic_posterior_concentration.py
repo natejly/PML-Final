@@ -23,6 +23,7 @@ MODEL_LABELS = {
     "reversal": "reversal",
     "reversal_burst": "reversal + burst",
     "reversal_momentum_burst": "reversal + momentum + burst",
+    "gated_reversal_momentum_burst": "gated reversal + momentum + burst",
 }
 
 
